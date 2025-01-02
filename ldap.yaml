@@ -1,0 +1,227 @@
+#@ load("@ytt:data", "data")
+#@ load("@ytt:sha256", "sha256")
+#@ load("@ytt:yaml", "yaml")
+
+#@ def ldapLIDIF():
+#@yaml/text-templated-strings
+ldap.ldif: |
+  # ** CAUTION: Blank lines separate entries in the LDIF format! Do not remove them! ***
+  # Here's a good explanation of LDIF:
+  # https://www.digitalocean.com/community/tutorials/how-to-use-ldif-files-to-make-changes-to-an-openldap-system
+
+  # tanzu.io (organization, root)
+  dn: dc=tanzu,dc=io
+  objectClass: dcObject
+  objectClass: organization
+  dc: tanzu
+  o: tanzu
+
+  # users, tanzu.io(organization unit)
+  dn: ou=users,dc=tanzu,dc=io
+  objectClass: organizationalUnit
+  ou: users
+
+  # groups, tanzu.io(organization unit)
+  dn: ou=groups,dc=tanzu,dc=io
+  objectClass: organizationalUnit
+  ou: groups
+
+  # tpsmadmin (user)
+  dn: cn=tpsmadmin,ou=users,dc=tanzu,dc=io
+  objectClass: inetOrgPerson
+  objectClass: posixAccount
+  objectClass: shadowAccount
+  cn: tpsmadmin
+  sn: None
+  givenName: tpsmadmin
+  mail: tpsmadmin@tanzu.io
+  userPassword: (@= data.values.default_ldap_password @)
+  uid: tpsmadmin@tanzu.io
+  uidNumber: 1000
+  gidNumber: 1000
+  homeDirectory: /home/tpsmadmin
+  loginShell: /bin/bash
+  gecos: tpsmadmin
+
+  # tpsmviewer (user)
+  dn: cn=tpsmviewer,ou=users,dc=tanzu,dc=io
+  objectClass: inetOrgPerson
+  objectClass: posixAccount
+  objectClass: shadowAccount
+  cn: tpsmviewer
+  sn: None
+  givenName: tpsmviewer
+  mail: tpsmviewer@tanzu.io
+  userPassword: (@= data.values.default_ldap_password @)
+  uid: tpsmviewer@tanzu.io
+  uidNumber: 1001
+  gidNumber: 1001
+  homeDirectory: /home/tpsmviewer
+  loginShell: /bin/bash
+  gecos: tpsmviewer
+
+  # tpsmoperator (user)
+  dn: cn=tpsmoperator,ou=users,dc=tanzu,dc=io
+  objectClass: inetOrgPerson
+  objectClass: posixAccount
+  objectClass: shadowAccount
+  cn: tpsmoperator
+  sn: None
+  givenName: tpsmoperator
+  mail: tpsmoperator@tanzu.io
+  userPassword: (@= data.values.default_ldap_password @)
+  uid: tpsmoperator@tanzu.io
+  uidNumber: 1002
+  gidNumber: 1002
+  homeDirectory: /home/tpsmoperator
+  loginShell: /bin/bash
+  gecos: tpsmoperator
+
+  # tpsmdeveloper (user)
+  dn: cn=tpsmdeveloper,ou=users,dc=tanzu,dc=io
+  objectClass: inetOrgPerson
+  objectClass: posixAccount
+  objectClass: shadowAccount
+  cn: tpsmdeveloper
+  sn: None
+  givenName: tpsmdeveloper
+  mail: tpsmdeveloper@tanzu.io
+  userPassword: (@= data.values.default_ldap_password @)
+  uid: tpsmdeveloper@tanzu.io
+  uidNumber: 1003
+  gidNumber: 1003
+  homeDirectory: /home/tpsmdeveloper
+  loginShell: /bin/bash
+  gecos: tpsmdeveloper
+
+  # tpsmadmin group
+  dn: cn=tpsmadmingroup,ou=groups,dc=tanzu,dc=io
+  cn: tpsmadmingroup
+  objectClass: groupOfNames
+  member: cn=tpsmadmin,ou=users,dc=tanzu,dc=io
+
+  # tpsmviewer group
+  dn: cn=tpsmviewergroup,ou=groups,dc=tanzu,dc=io
+  cn: tpsmviewergroup
+  objectClass: groupOfNames
+  member: cn=tpsmviewer,ou=users,dc=tanzu,dc=io
+
+  # tpsmoperator group
+  dn: cn=tpsmoperatorgroup,ou=groups,dc=tanzu,dc=io
+  cn: tpsmoperatorgroup
+  objectClass: groupOfNames
+  member: cn=tpsmoperator,ou=users,dc=tanzu,dc=io
+
+  # tpsmdeveloper group
+  dn: cn=tpsmdevelopergroup,ou=groups,dc=tanzu,dc=io
+  cn: tpsmdevelopergroup
+  objectClass: groupOfNames
+  member: cn=tpsmdeveloper,ou=users,dc=tanzu,dc=io
+#@ end
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ldap-ldif-files
+  namespace: openldap
+type: Opaque
+stringData: #@ ldapLIDIF()
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ldap
+  namespace: openldap
+  labels:
+    app: ldap
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ldap
+  template:
+    metadata:
+      labels:
+        app: ldap
+    spec:
+      containers:
+        - name: ldap
+          image: harbor.tanzu.io:8443/library/openldap
+          imagePullPolicy: Always
+          ports:
+            - name: ldap
+              containerPort: 1389
+            - name: ldaps
+              containerPort: 1636
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+          readinessProbe:
+            tcpSocket:
+              port: ldap
+            initialDelaySeconds: 2
+            timeoutSeconds: 90
+            periodSeconds: 2
+            failureThreshold: 9
+          env:
+            - name: BITNAMI_DEBUG
+              value: "true"
+            - name: LDAP_ADMIN_USERNAME
+              value: "admin"
+            - name: LDAP_ADMIN_PASSWORD
+              value: "admin123"
+            - name: LDAP_ROOT
+              value: "dc=tanzu,dc=io"
+            - name: LDAP_USER_DC
+              value: "users"
+            - name: LDAP_GROUP
+              value: "users"
+            - name: LDAP_ENABLE_TLS
+              value: "yes"
+            - name: LDAP_TLS_CERT_FILE
+              value: "/var/certs/ldap.pem"
+            - name: LDAP_TLS_KEY_FILE
+              value: "/var/certs/ldap-key.pem"
+            - name: LDAP_TLS_CA_FILE
+              value: "/var/certs/ca.pem"
+            - name: LDAP_CUSTOM_LDIF_DIR
+              value: /var/ldifs
+          volumeMounts:
+            - name: certs
+              mountPath: /var/certs
+              readOnly: true
+            - name: ldifs
+              mountPath: /var/ldifs
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: certs
+        - name: ldifs
+          secret:
+            secretName: ldap-ldif-files
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ldap
+  namespace: openldap
+  labels:
+    app: ldap
+spec:
+  type: ClusterIP
+  selector:
+    app: ldap
+  ports:
+    - protocol: TCP
+      port: 389
+      targetPort: 1389
+      name: ldap
+    - protocol: TCP
+      port: 636
+      targetPort: 1636
+      name: ldaps

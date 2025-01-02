@@ -1,0 +1,4 @@
+#@data/values
+---
+#! The plaintext password of the LDAP test account user.
+default_ldap_password:
