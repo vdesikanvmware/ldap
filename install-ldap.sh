@@ -2,15 +2,10 @@ ytt -f ldap.yaml -f placeholders.yaml -v 'default_ldap_password=VMware1!' > open
 
 # Get openldap docker image, upload to harbor:
 echo "Getting OpenLDAP image to harbor..."
-# docker pull  quay.io/vdesikanvmware/openldap:latest
-# docker login harbor.tanzu.io:8443 --username admin --password Harbor12345
-# docker tag quay.io/vdesikanvmware/openldap:latest harbor.tanzu.io:8443/library/openldap
-# docker push harbor.tanzu.io:8443/library/openldap
-
-docker pull quay.io/vdesikanvmware/openldap:latest
-docker login harbor.tanzu-e2e.com --username admin --password VMware1!
-docker tag quay.io/vdesikanvmware/openldap:latest harbor.tanzu-e2e.com/library/openldap
-docker push harbor.tanzu-e2e.com/library/openldap
+docker pull  quay.io/vdesikanvmware/openldap:latest
+docker login harbor.tanzu.io:8443 --username admin --password Harbor12345
+docker tag quay.io/vdesikanvmware/openldap:latest harbor.tanzu.io:8443/library/openldap
+docker push harbor.tanzu.io:8443/library/openldap
 
 
 # Utilize Shepherd Root CA to create SSL cert
